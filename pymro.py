@@ -1,65 +1,65 @@
-from typing import Any, Dict, Callable, Iterable, List, Tuple
+from typing import Any, Dict, Callable, Iterable, List
 from functools import partial
+
+
+class BadInheritanceError(Exception):
+    pass
 
 
 def linearize(cls: str, bases: Dict[str, List[str]]) -> List[str]:
     if cls not in bases:
         return [cls]
-    l_bases = list(map(lambda key: linearize(key, bases), bases[cls]))
-    l_bases.append(bases[cls])
-    return [cls] + list(merge(*l_bases))
+    return list(merge([[cls]] + list(map(partial(linearize, bases=bases), bases[cls])) + [bases[cls]]))
 
 
-def merge(*l_seqs: List[List[str]]) -> Iterable[str]:
-    for i, seq in enumerate(l_seqs):
+def merge(l_seqs: List[List[str]]) -> Iterable[str]:
+    for seq in l_seqs:
         h = head(seq)
-        l_rest = list(take_if(lambda x: x[0] != i, enumerate(l_seqs)))
 
-        if if_any(lambda x: h in tail(x[1]), l_rest) >= 0:
+        if if_any(lambda x: h in tail(x), l_seqs) >= 0:
             continue
 
-        l_seqs = list(filter_map(lambda x: partial(cut_head, h)(x), l_seqs))
+        l_seqs = list(filter_map(lambda x: tail(x) if x[0] == h else x, is_not_empty, l_seqs))
         yield h
         break
     else:
-        raise Exception('Bad inheritance')
+        raise BadInheritanceError('Bad inheritance')
 
     if len(l_seqs) > 0:
-        yield from merge(*l_seqs)
-
-
-# こわい
-def cut_head(hd: str, lst: List[str]):
-    if hd == lst[0]:
-        if len(lst) == 1:
-            return False, None
-        else:
-            return True, lst[1:]
-    else:
-        return True, lst
+        yield from merge(l_seqs)
 
 
 # ************** helper functions *****************
 
 def tail(lst: List[Any]) -> List[Any]:
-    return lst[1:] if len(lst) > 1 else []
+    return lst[1:]
 
 
 def head(lst: List[Any]) -> Any:
     return lst[0]
 
 
+def is_empty(lst: List[Any]) -> bool:
+    return len(lst) == 0
+
+
+def is_not_empty(lst: List[Any]) -> bool:
+    return not is_empty(lst)
+
+
 def if_any(func: Callable[[Any], bool], iter1: Iterable[Any]) -> int:
-    for item in iter1:
+    for i, item in enumerate(iter1):
         if func(item) is True:
-            return item[0]
+            return i
     return -1
 
 
-def filter_map(func: Callable[[Any], Tuple[bool, Any]], iter1: Iterable[Any]) -> Iterable[Any]:
+def filter_map(func_map: Callable[[Any], Any],
+               func_filter: Callable[[Any], bool],
+               iter1: Iterable[Any]) -> Iterable[Any]:
     for item in iter1:
-        ok, val = func(item)
-        if ok is True:
+        val = func_map(item)
+        if func_filter(val) is True:
             yield val
 
 
@@ -70,32 +70,44 @@ def take_if(func: Callable[[Any], bool], iter1: Iterable[Any]) -> Iterable[Any]:
 
 
 if __name__ == '__main__':
-    mro = linearize('A', {
-        'F': ['O'],
-        'E': ['O'],
-        'D': ['O'],
-        'C': ['D', 'F'],
-        'B': ['D', 'E'],
-        'A': ['B', 'C'],
-    })
-    print(mro)
+    try:
+        mro = linearize('A', {
+            'F': ['O'],
+            'E': ['O'],
+            'D': ['O'],
+            'C': ['D', 'F'],
+            'B': ['D', 'E'],
+            'A': ['B', 'C'],
+        })
+    except BadInheritanceError as e:
+        print(e)
+    else:
+        print(mro)
 
-    mro = linearize('A', {
-        'F': ['O'],
-        'E': ['O'],
-        'D': ['O'],
-        'C': ['D', 'F'],
-        'B': ['E', 'D'],
-        'A': ['B', 'C'],
-    })
-    print(mro)
+    try:
+        mro = linearize('A', {
+            'F': ['O'],
+            'E': ['O'],
+            'D': ['O'],
+            'C': ['D', 'F'],
+            'B': ['E', 'D'],
+            'A': ['B', 'C'],
+        })
+    except BadInheritanceError as e:
+        print(e)
+    else:
+        print(mro)
 
-    mro = linearize('A', {
-        'F': ['O'],
-        'E': ['O'],
-        'D': ['O'],
-        'C': ['D', 'E'],
-        'B': ['E', 'D'],
-        'A': ['B', 'C'],
-    })
-    print(mro)
+    try:
+        mro = linearize('A', {
+            'F': ['O'],
+            'E': ['O'],
+            'D': ['O'],
+            'C': ['D', 'E'],
+            'B': ['E', 'D'],
+            'A': ['B', 'C'],
+        })
+    except BadInheritanceError as e:
+        print(e)
+    else:
+        print(mro)
